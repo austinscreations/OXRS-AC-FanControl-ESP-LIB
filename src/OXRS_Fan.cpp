@@ -8,19 +8,17 @@ Adafruit_EMC2101 emc2101[TCA_COUNT];
  *  Main program
  *
  */
-OXRS_Fan::OXRS_Fan(OXRS_MQTT &mqtt)
-{
-  _fanMqtt = &mqtt;
-}
-
 void OXRS_Fan::begin()
 {
   // Scan the I2C bus for any TCA9548s (I2C muxes) and check each one
   // to see if any EMC2101 fan controllers are attached
   scanI2CBus();
+  
+  // Make sure we get telemetry data straight after booting
+  _lastPublishTelemetry = -_publishTelemetry_ms;
 }
 
-void OXRS_Fan::loop()
+void OXRS_Fan::getTelemetry(JsonVariant json)
 {
   // Ignore if no fan controllers found
   if (_fansFound == 0) { return; }
@@ -31,8 +29,7 @@ void OXRS_Fan::loop()
   // Check if we are ready to publish
   if ((millis() - _lastPublishTelemetry) > _publishTelemetry_ms)
   {
-    DynamicJsonDocument telemetry(4096);
-    JsonArray array = telemetry.to<JsonArray>();
+    JsonArray telemetry = json.to<JsonArray>();
     
     // Iterate through each of the TCA9548s found on the I2C bus
     for (uint8_t tca = 0; tca < TCA_COUNT; tca++)
@@ -71,21 +68,15 @@ void OXRS_Fan::loop()
         }
 
         // Add the telemetry data for this fan
-        JsonObject json = array.createNestedObject();
-        json["fan"] = fan;
-        json["running"] = rpm > 0;
-        json["rpm"] = rpm;
-        json["dutyCycle"] = dutyCycle;
-        json["temperature"] = temperature;
+        JsonObject item = telemetry.createNestedObject();
+        item["fan"] = fan;
+        item["running"] = rpm > 0;
+        item["rpm"] = rpm;
+        item["dutyCycle"] = dutyCycle;
+        item["temperature"] = temperature;
       }
     }
 
-    // Publish to MQTT
-    if (telemetry.size() > 0)
-    {
-      _fanMqtt->publishTelemetry(telemetry.as<JsonVariant>());
-    }
-    
     // Reset our timer
     _lastPublishTelemetry = millis();
   }
@@ -152,15 +143,14 @@ void OXRS_Fan::scanI2CBus()
           // Keep track of how many fans we detected
           ++_fansFound;
 
-          // TODO: make these configurable?
-          // Set the lookup table thresholds
-          emc2101[tca].setLUT(0, 20, 10);
-          emc2101[tca].setLUT(1, 30, 30);
-          emc2101[tca].setLUT(2, 40, 50);
-          emc2101[tca].setLUT(3, 50, 100);
-    
+          // Enable the lookup table and set hysteresis to 5 degrees
           emc2101[tca].LUTEnabled(true);
           emc2101[tca].setLUTHysteresis(5);
+
+          // Set the default fan speed thresholds
+          emc2101[tca].setLUT(0, 30, 25);
+          emc2101[tca].setLUT(1, 40, 50);
+          emc2101[tca].setLUT(2, 50, 100);
         }    
       }
     }
@@ -205,6 +195,34 @@ void OXRS_Fan::setConfigSchema(JsonVariant json)
   externalTemperatureTimeoutSeconds["minimum"] = 0;
   externalTemperatureTimeoutSeconds["maximum"] = 86400;
 
+  JsonObject fanSpeedThresholds = properties.createNestedObject("fanSpeedThresholds");
+  fanSpeedThresholds["title"] = "Fan Speed Thresholds";
+  fanSpeedThresholds["description"] = "Add a series of temperature thresholds and required fan speeds. This allows you to configure your fan to ramp up as the temperature increases.";
+  fanSpeedThresholds["type"] = "array";
+  fanSpeedThresholds["minItems"] = 1;
+  fanSpeedThresholds["maxItems"] = 8;
+
+  JsonObject fanSpeedThresholdsItems = fanSpeedThresholds.createNestedObject("items");
+  fanSpeedThresholdsItems["type"] = "object";
+  
+  JsonObject fanSpeedThresholdProperties = fanSpeedThresholdsItems.createNestedObject("properties");
+  
+  JsonObject fanSpeedThresholdTemp = fanSpeedThresholdProperties.createNestedObject("temperature");
+  fanSpeedThresholdTemp["title"] = "Temperature (°C)";
+  fanSpeedThresholdTemp["type"] = "integer";
+  fanSpeedThresholdTemp["minimum"] = 0;
+  fanSpeedThresholdTemp["maximum"] = 126;
+  
+  JsonObject fanSpeedThresholdDutyCycle = fanSpeedThresholdProperties.createNestedObject("dutyCycle");
+  fanSpeedThresholdDutyCycle["title"] = "Duty Cycle (%)";
+  fanSpeedThresholdDutyCycle["type"] = "integer";
+  fanSpeedThresholdDutyCycle["minimum"] = 0;
+  fanSpeedThresholdDutyCycle["maximum"] = 100;
+
+  JsonArray fanSpeedThresholdsRequired = fanSpeedThresholdsItems.createNestedArray("required");
+  fanSpeedThresholdsRequired.add("temperature");
+  fanSpeedThresholdsRequired.add("dutyCycle");
+  
   JsonArray required = items.createNestedArray("required");
   required.add("fan");
 }
@@ -233,9 +251,27 @@ void OXRS_Fan::jsonFanConfig(JsonVariant json)
   uint8_t fan = getFan(json);
   if (fan == 0) return;
 
+  uint8_t tca = (fan - 1) / EMC_COUNT;
+  uint8_t emc = (fan - 1) % EMC_COUNT;
+
+  // Select the EMC2101 on our I2C mux
+  if (!selectEMC(tca, emc))
+    return;
+
   if (json.containsKey("externalTemperatureTimeoutSeconds"))
   {
     _externalTempTimeout_ms[fan] = json["externalTemperatureTimeoutSeconds"].as<uint8_t>();
+  }
+  
+  if (json.containsKey("fanSpeedThresholds"))
+  {
+    JsonArray array = json["fanSpeedThresholds"].as<JsonArray>();
+    uint8_t index = 0;
+    
+    for (JsonVariant v : array)
+    {
+      emc2101[tca].setLUT(index++, v["temperature"].as<uint8_t>(), v["dutyCycle"].as<uint8_t>());
+    }
   }
 }
 
@@ -270,7 +306,7 @@ void OXRS_Fan::setCommandSchema(JsonVariant json)
   externalTemperature["title"] = "External Temperature (°C)";
   externalTemperature["type"] = "integer";
   externalTemperature["minimum"] = 0;
-  externalTemperature["maximum"] = 100;
+  externalTemperature["maximum"] = 126;
 
   JsonArray required = items.createNestedArray("required");
   required.add("fan");

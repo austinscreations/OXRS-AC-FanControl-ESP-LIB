@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <OXRS_MQTT.h>
 #include <ArduinoJson.h>
 #include <Adafruit_EMC2101.h>
 
@@ -24,10 +23,9 @@ const uint8_t TCA_COUNT                       = sizeof(TCA_I2C_ADDRESS);
 class OXRS_Fan
 {
 public:
-  OXRS_Fan(OXRS_MQTT &mqtt);
-
   void begin();
-  void loop();
+  
+  void getTelemetry(JsonVariant json);
 
   void setConfigSchema(JsonVariant json);
   void setCommandSchema(JsonVariant json);
@@ -36,9 +34,6 @@ public:
   void onCommand(JsonVariant json);
 
 private:
-
-  OXRS_MQTT *_fanMqtt;
-
   uint8_t _tcasFound = 0;
   uint8_t _emcsFound[TCA_COUNT];
   uint8_t _fansFound = 0;
