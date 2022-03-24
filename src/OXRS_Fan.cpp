@@ -13,9 +13,6 @@ void OXRS_Fan::begin()
   // Scan the I2C bus for any TCA9548s (I2C muxes) and check each one
   // to see if any EMC2101 fan controllers are attached
   scanI2CBus();
-  
-  // Make sure we get telemetry data straight after booting
-  _lastPublishTelemetry = -_publishTelemetry_ms;
 }
 
 void OXRS_Fan::getTelemetry(JsonVariant json)
