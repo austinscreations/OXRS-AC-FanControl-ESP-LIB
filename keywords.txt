@@ -1,0 +1,22 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+OXRS_Fan	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin		KEYWORD2
+loop		KEYWORD2
+
+setConfigSchema		KEYWORD2
+setCommandSchema  KEYWORD2
+
+onConfig		KEYWORD2
+onCommand		KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
