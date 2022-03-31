@@ -15,6 +15,46 @@ void OXRS_Fan::begin()
   scanI2CBus();
 }
 
+void OXRS_Fan::loop()
+{
+  // Ignore if no fan controllers found
+  if (_fansFound == 0) { return; }
+  
+  // Iterate through each of the TCA9548s found on the I2C bus
+  for (uint8_t tca = 0; tca < TCA_COUNT; tca++)
+  {
+    if (bitRead(_tcasFound, tca) == 0)
+      continue;
+
+    // Iterate through each of the EMC2101s found on the TCA I2C mux
+    for (uint8_t emc = 0; emc < EMC_COUNT; emc++)
+    {
+      if (bitRead(_emcsFound[tca], emc) == 0)
+        continue;
+
+      // Ignore if there hasn't been an external temp report recently
+      if (_lastExternalTemp[fan] == 0L)
+        continue;
+
+      // Ignore if external temp timeouts have been disabled
+      if (_externalTempTimeout_ms[fan] >== 0L)
+        continue;
+      
+      // Check if we have been waiting too long
+      if ((millis() - _lastExternalTemp[fan]) > _externalTempTimeout_ms[fan])
+      {
+        // Select the EMC2101 on our I2C mux
+        if (!selectEMC(tca, emc))
+          continue;
+
+        // Disable external temperature handling, reverting to onboard sensor
+        emc2101[tca].enableForcedTemperature(false);
+        _lastExternalTemp[fan] = 0L;
+      }
+    }
+  }
+}
+
 void OXRS_Fan::getTelemetry(JsonVariant json)
 {
   // Ignore if no fan controllers found
@@ -52,17 +92,6 @@ void OXRS_Fan::getTelemetry(JsonVariant json)
         // EMC2101 returns a temp of 127 if nothing connected
         if (temperature == 127L)
           continue;
-
-        // Check if we have been waiting too long for an external temperature report
-        if (_externalTempTimeout_ms[fan] > 0L && _lastExternalTemp[fan] > 0L)
-        {
-          if ((millis() - _lastExternalTemp[fan]) > _externalTempTimeout_ms[fan])
-          {
-            // Disable external temperature handling, reverting to onboard sensor
-            emc2101[tca].enableForcedTemperature(false);
-            _lastExternalTemp[fan] = 0L;
-          }
-        }
 
         // Add the telemetry data for this fan
         JsonObject item = telemetry.createNestedObject();
