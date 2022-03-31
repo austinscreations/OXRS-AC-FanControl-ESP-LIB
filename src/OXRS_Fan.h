@@ -24,6 +24,7 @@ class OXRS_Fan
 {
 public:
   void begin();
+  void loop();
   
   void getTelemetry(JsonVariant json);
 
