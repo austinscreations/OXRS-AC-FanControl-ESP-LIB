@@ -27,10 +27,10 @@ void setup()
 
 void loop() 
 {
-  // Check fan timeouts etc
+  // Let fan controllers handle any events etc
   oxrsFan.loop();
   
-  // Publish fan telemetry to serial
+  // Publish fan telemetry
   DynamicJsonDocument telemetry(4096);
   oxrsFan.getTelemetry(telemetry.as<JsonVariant>());
 
