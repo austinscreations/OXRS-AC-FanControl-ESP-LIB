@@ -32,6 +32,9 @@ void OXRS_Fan::loop()
       if (bitRead(_emcsFound[tca], emc) == 0)
         continue;
 
+      // Calculate the unique fan index
+      uint8_t fan = (tca * EMC_COUNT) + emc + 1;
+
       // Ignore if there hasn't been an external temp report recently
       if (_lastExternalTemp[fan] == 0L)
         continue;
