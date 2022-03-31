@@ -40,7 +40,7 @@ void OXRS_Fan::loop()
         continue;
 
       // Ignore if external temp timeouts have been disabled
-      if (_externalTempTimeout_ms[fan] >== 0L)
+      if (_externalTempTimeout_ms[fan] == 0L)
         continue;
       
       // Check if we have been waiting too long
