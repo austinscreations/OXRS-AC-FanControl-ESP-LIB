@@ -17,8 +17,8 @@ const uint8_t TCA_COUNT                       = sizeof(TCA_I2C_ADDRESS);
 // How often to publish telemetry data (default to 60s)
 #define       DEFAULT_PUBLISH_TELEMETRY_MS      60000L
 
-// How long before reverting to onboard temp sensor after last external temp report (defaults to 60s)
-#define       DEFAULT_EXTERNAL_TEMP_TIMEOUT_MS  60000L
+// How long before reverting to onboard temp sensor after last external temp report (defaults to 90s)
+#define       DEFAULT_EXTERNAL_TEMP_TIMEOUT_MS  90000L
 
 class OXRS_Fan
 {
