@@ -204,7 +204,7 @@ void OXRS_Fan::setConfigSchema(JsonVariant json)
 
   JsonObject fans = json.createNestedObject("fans");
   fans["title"] = "Fan Configuration";
-  fans["description"] = "Add configuration for each fan attached to your device. The 1-based index specifies which fan you wish to configure. The external temperature sensor timeout defines how long after the last temperature update before reverting to the onboard temperature sensor for determining fan speed (defaults to 60 seconds, 0 means it will never revert, must be a number between 0 and 86400).";
+  fans["description"] = "Add configuration for each fan attached to your device. The 1-based index specifies which fan you wish to configure. The external temperature sensor timeout defines how long after the last temperature update before reverting to the onboard temperature sensor for determining fan speed (defaults to 90 seconds, 0 means it will never revert, must be a number between 0 and 86400).";
   fans["type"] = "array";
   
   JsonObject items = fans.createNestedObject("items");
